@@ -1,0 +1,193 @@
+
+->
+    { NString, NRefCall, NRefDecl, NAnything, 
+        NNumber, NBoolean, NDate, NInteger, 
+        NObject, NArray, ArrayRange, NProperty
+    } = require './nodes'
+
+    debug = false
+    function d (str)
+        console.log(str) if debug
+
+
+toplevel
+    = node:(type) __? -> return node
+
+type
+    = (ref_decl? types / ref_call)
+
+types
+    = __? type_single (PIPE type_single)*
+
+type_single
+    = type:(array
+    / object
+    / string
+    / date
+    / number
+    / integer
+    / boolean
+    / anything) validation:expression?
+
+ref_decl
+    = AMPERSAND string_simple
+
+ref_call
+    = STAR string_simple
+
+array
+    = mod:array_modifier? LBRACKET type:type RBRACKET
+
+array_modifier
+    = PLUS
+    / LBRACE from:integer COMMA to:integer RBRACE
+
+object
+    = LBRACE property* RBRACE
+    / p: property+
+
+property
+    = __? name:string_literal  __? ":" type:type nul:nullable? att:(optional { return "optional"; } / default)?  ->
+        prop = new NProperty name, type
+        if att is \optional
+            prop.setOptional!
+        if att instanceof Object
+            prop.setDefault def
+        if nul
+            prop.setNullable!
+        return prop
+
+        
+    # / regexp_literal
+
+nullable = __? "nullable"
+optional = __? "optional"
+default = __? "default" literal
+
+date 
+    = __? "date" -> return new NDate
+string 
+    = __? "string" -> return new NString
+number 
+    = __? "number" -> return new NNumber
+integer 
+    = __? "integer" -> return new NInteger
+boolean 
+    = __? "boolean" -> return new NBoolean
+anything
+    = __? "anything" -> return new NAnything
+
+/**
+ *
+ */
+expression
+    = literal (IN / NOT IN) container:(list / member / function_call)
+    / l:literal (IS / IS NOT) r:literal -> d r
+    # / literal COMP_OP literal
+    / (literal COMP_OP)+ r:literal
+
+COMP_OP = GT / GTE / LTE / LT
+
+/**
+ *
+ */
+literal
+    = __? ( function_call
+          / number_literal
+          / string_literal
+          / list
+          / member
+          / boolean_literal
+          / null
+    )
+
+/**
+ *
+ */
+list
+    = LPAREN (literal)+ RPAREN
+
+string_literal
+    = string_simple
+    / "'" str:("\\'" / [^\'])* "'"
+    / '"' str:("\\\"" / [^\"])*  '"'
+
+boolean_literal
+    = TRUE / FALSE
+
+/**
+ *  FIXME: member should have a nice syntax !
+ */
+member
+    # FIXME should be better !
+    = AROBAS
+
+/**
+ *  A function call.
+ */
+function_call
+    = string_regular LPAREN member RPAREN
+
+/**
+ *  A simple string for label matching.
+ */
+string_simple
+    = __? f:[^:\t\+\n\(\) ] s:[^:\t\+\n\) ]+ -> 
+        str = f + s.join ""
+        d str
+        return str
+
+/**
+ *  A string as encountered in regular programming languages.
+ */
+string_regular
+    = __? f:[a-zA-Z_] s:[a-zA-Z_0-9]+ ->
+        str = f + s.join ""
+        d str
+        return str
+
+number_literal
+    = [0-9]+ comma:("." [0-9]+)?
+
+integer
+    = __? number:[0-9]+ -> return number.join ""
+
+null
+    = "null"
+
+# comments !
+__
+    = (
+    whitespace? "#" [^\n]* "\n"
+    / whitespace
+    / '\n' )+ -> return ""
+
+whitespace 
+    = (" " / "\t")+
+
+AMPERSAND   = __? "&"
+LBRACKET    = __? "["
+RBRACKET    = __? "]"
+LBRACE      = __? "{"
+RBRACE      = __? "}"
+STAR        = __? "*"
+PLUS        = __? "+"
+COMMA       = __? ","
+LPAREN      = __? "("
+RPAREN      = __? ")"
+AROBAS      = __? "@"
+PIPE        = __? "|"
+
+IN          = __? "in"
+NOT         = __? "not"
+IS          = __? "is"
+MATCHES     = __? "matches"
+
+GT          = __? ">"
+LT          = __? "<"
+LTE         = __? "<="
+GTE         = __? ">="
+
+TRUE        = __? "true"
+FALSE       = __? "false"
+

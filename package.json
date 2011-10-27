@@ -1,0 +1,32 @@
+{
+    "name" : "validatr",
+    "description" : "A data validation language",
+    "keywords" : ["language", "compiler", "validation"],
+    "author" : "Christophe Eymard <christophe.eymard@ravelsoft.com> (http://www.ravelsoft.com)",
+    "version" : "0.0.1",
+    "homepage" : "http://www.ravelsoft.com/",
+    "repository" : {
+        "type": "git", 
+        "url": "git://github.com/ravelsoft/validatr"
+    },
+    "licenses" : [ {   
+            "type" : "MIT",
+            "url"  : "https://github.com/satyr/coco/raw/master/LICENSE"
+        }
+    ],
+    "engines"     : {"node": ">=0.4.0"},
+    "directories" : {"lib" : "./lib"  },
+    "main" : "./lib/grammar",
+    "bin" : {
+        "validatr" : "./lib/command.js"
+     },
+     "dependencies" : { 
+        "optimist": "0.2.3"
+     },
+     "devDependencies" : {
+        "pegco": "latest",
+        "rbuild": "latest",
+        "coco": "0.6.x",
+        "vows": "latest"
+     }
+}
