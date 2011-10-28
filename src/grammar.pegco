@@ -1,23 +1,30 @@
 
 ->
-    { NString, NRefCall, NRefDecl, NAnything, 
-        NNumber, NBoolean, NDate, NInteger, 
-        NObject, NArray, ArrayRange, NProperty
-    } = require './nodes'
+    { TypeString, TypeRefCall, TypeRefDecl, TypeAnything, 
+        TypeNumber, TypeBoolean, TypeDate, TypeInteger, 
+        TypeObject, TypeArray, ArrayRange, TypeProperty,
+        Types,
 
-    debug = false
-    function d (str)
-        console.log(str) if debug
+        BinaryOperator,
 
+        String, Typeumber, List, Member, Boolean, FunCall
+    } = require './ast'
 
 toplevel
     = node:(type) __? -> return node
 
 type
-    = (ref_decl? types / ref_call)
+    = decl:ref_decl? t:type_choice ->
+        return t
+    / call:ref_call
 
-types
-    = __? type_single (PIPE type_single)*
+type_choice
+    = __? type:type_single typearr:(PIPE t:type_single { return t; })* ->
+        types = new Types!
+        types.addType type
+        for t of typearr
+            types.addType t
+        return types
 
 type_single
     = type:(array
@@ -27,7 +34,11 @@ type_single
     / number
     / integer
     / boolean
-    / anything) validation:expression?
+    / anything) validation:boolean_expression? ->
+        # FIXME add validation
+        if validation
+            type.validation = validation
+        return type
 
 ref_decl
     = AMPERSAND string_simple
@@ -36,19 +47,25 @@ ref_call
     = STAR string_simple
 
 array
-    = mod:array_modifier? LBRACKET type:type RBRACKET
-
-array_modifier
-    = PLUS
-    / LBRACE from:integer COMMA to:integer RBRACE
+    = LBRACKET type:type? RBRACKET ->
+        arr = new TypeArray type
+        return arr
 
 object
-    = LBRACE property* RBRACE
-    / p: property+
+    = LBRACE props:property* RBRACE ->
+        obj = new TypeObject!
+        for o of props
+            obj.addProperty o
+        return obj
+    / props:property+ ->
+        obj = new TypeObject!
+        for o of props
+            obj.addProperty o
+        return obj
 
 property
     = __? name:string_literal  __? ":" type:type nul:nullable? att:(optional { return "optional"; } / default)?  ->
-        prop = new NProperty name, type
+        prop = new TypeProperty name, type
         if att is \optional
             prop.setOptional!
         if att instanceof Object
@@ -65,52 +82,74 @@ optional = __? "optional"
 default = __? "default" literal
 
 date 
-    = __? "date" -> return new NDate
+    = __? "date" -> return new TypeDate
 string 
-    = __? "string" -> return new NString
+    = __? "string" -> return new TypeString
 number 
-    = __? "number" -> return new NNumber
+    = __? "number" -> return new TypeNumber
 integer 
-    = __? "integer" -> return new NInteger
+    = __? "integer" -> return new TypeInteger
 boolean 
-    = __? "boolean" -> return new NBoolean
+    = __? "boolean" -> return new TypeBoolean
 anything
-    = __? "anything" -> return new NAnything
+    = __? "anything" -> return new TypeAnything
+
+boolean_expression
+    = l:expression op:(AND / OR) r:boolean_expression ->
+        op.left = l
+        op.right = r
+        return op
+    / LPAREN exp:boolean_expression RPAREN -> return exp
+    / exp:expression ->
+        return exp
 
 /**
  *
  */
 expression
-    = literal (IN / NOT IN) container:(list / member / function_call)
-    / l:literal (IS / IS NOT) r:literal -> d r
-    # / literal COMP_OP literal
-    / (literal COMP_OP)+ r:literal
+    = expression_op
+    / left:literal op:expression_op ->
+        op.left = left
+        return op
 
-COMP_OP = GT / GTE / LTE / LT
+expression_op
+    = op:(IN / NOT op:IN { op.negated = true; return op; } ) container:(list / member / function_call) ->
+        op.right = container
+        return op
+            
+    / op:(op:IS NOT { op.negated = true; return op; } / IS) r:literal ->
+        op.right = r
+        return op
+        
+    / op:COMP_OP r:literal ->
+        op.right = r
+        return op
+
+COMP_OP = LTE / GTE / LT / GT
 
 /**
  *
  */
 literal
-    = __? ( function_call
+    = __? lit:( function_call
           / number_literal
           / string_literal
           / list
           / member
           / boolean_literal
-          / null
-    )
+          / null ) -> return lit
 
 /**
  *
  */
 list
-    = LPAREN (literal)+ RPAREN
+    = LPAREN lits:(li:literal { return li; })+ RPAREN ->
+        return new List lits
 
 string_literal
-    = string_simple
-    / "'" str:("\\'" / [^\'])* "'"
-    / '"' str:("\\\"" / [^\"])*  '"'
+    = "'" str:("\\'" / [^\'])* "'" -> return new String str.join ""
+    / '"' str:("\\\"" / [^\"])*  '"' -> return new String str.join ""
+    / str:string_simple -> return new String str
 
 boolean_literal
     = TRUE / FALSE
@@ -120,13 +159,18 @@ boolean_literal
  */
 member
     # FIXME should be better !
-    = AROBAS
+    = DOLLAR ->
+        return new Member \$
 
 /**
  *  A function call.
  */
 function_call
-    = string_regular LPAREN member RPAREN
+    = name:string_regular LPAREN member RPAREN ->
+        # FIXME should be able to give arguments
+        return new FunCall name.str, [new Member \$]
+    / name:string_regular EXCLAMATION ->
+        return new FunCall name.str, [new Member \$]
 
 /**
  *  A simple string for label matching.
@@ -134,7 +178,6 @@ function_call
 string_simple
     = __? f:[^:\t\+\n\(\) ] s:[^:\t\+\n\) ]+ -> 
         str = f + s.join ""
-        d str
         return str
 
 /**
@@ -143,11 +186,12 @@ string_simple
 string_regular
     = __? f:[a-zA-Z_] s:[a-zA-Z_0-9]+ ->
         str = f + s.join ""
-        d str
-        return str
+        return new String str
 
 number_literal
-    = [0-9]+ comma:("." [0-9]+)?
+    = n:[0-9]+ comma:("." e:[0-9]+ { return '.' + e.join(""); })? ->
+        n = (n.join "") + comma
+        return new Number n
 
 integer
     = __? number:[0-9]+ -> return number.join ""
@@ -176,18 +220,23 @@ COMMA       = __? ","
 LPAREN      = __? "("
 RPAREN      = __? ")"
 AROBAS      = __? "@"
+DOLLAR      = __? "$"
 PIPE        = __? "|"
+EXCLAMATION = __? "!"
+SHARP       = __? "#"
 
-IN          = __? "in"
+IN          = __? "in" { return BinaryOperator["in"](); }
 NOT         = __? "not"
-IS          = __? "is"
-MATCHES     = __? "matches"
+IS          = __? "is" { return BinaryOperator.is(); }
+MATCHES     = __? "matches" { return BinaryOperator.matches(); }
 
-GT          = __? ">"
-LT          = __? "<"
-LTE         = __? "<="
-GTE         = __? ">="
+GT          = __? o:">" { return BinaryOperator.gt(); }
+LT          = __? o:"<" { return new BinaryOperator.lt(); }
+LTE         = __? o:"<=" { return new BinaryOperator.lte(); }
+GTE         = __? o:">=" { return new BinaryOperator.gte(); }
 
-TRUE        = __? "true"
-FALSE       = __? "false"
+TRUE        = __? "true" { return new Boolean(true); }
+FALSE       = __? "false" { return new Boolean(false); }
+AND         = __? "and" { return new BinaryOperator.and(); }
+OR          = __? "or" { return new BinaryOperator.or(); }
 

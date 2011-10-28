@@ -1,0 +1,107 @@
+/**
+ *
+ */
+class Type
+    ->
+        @validation = null
+    toString: function
+        s = @_toString!
+        if @validation
+            s += " " + @validation.toString!
+        return s
+        
+
+class Types
+    (@types ? []) ->
+
+    addType: function (type)
+        @types.push type
+
+    toString: function
+        types = (t.toString! for t of @types)
+        return types.join " | "
+
+class TypeProperty
+    (@name, @inner_type) ->
+        @optional = false
+        @default = null
+        @nullable = false
+
+    setOptional: function
+        @optional = true
+
+    setDefault: function (literal)
+        # FIXME find out about if literal is okay.
+        @default = literal
+
+    setTypeullable: function
+        @nullable = true
+
+    toString: function
+        return "#{@name}: #{@inner_type.toString!}"
+        
+/**
+ *
+ */
+class TypeArray extends Type
+    (@inner_type) ->
+        super ...
+        @modifier = null
+
+        if not @inner_type
+            @inner_type = new TypeAnything!
+
+    setModifiers: function (mod)
+        # FIXME control mods type
+        @modifier = mod
+
+    _toString: function
+        return "[ #{@inner_type.toString!} ]"
+
+/**
+ *  The Object class
+ */
+class TypeObject extends Type
+    ->
+        super ...
+        @properties = []
+
+    addProperty: function (prop)
+        if prop not instanceof TypeProperty
+            throw new Error "Can't add a non property to an Object Typeode"
+
+        @properties.push prop
+
+    _toString: function
+        s = "{ "
+        s += (p.toString! for p of @properties).join " "
+        s += " }"
+        return s
+
+class TypeString extends Type
+    -> super ...
+    _toString: function  
+        \string
+        
+class TypeNumber extends Type
+    -> super ...
+    _toString: function
+        \number
+
+class TypeBoolean extends Type
+    -> super ...
+    _toString: function
+        \boolean
+
+class TypeAnything extends Type
+    -> super ...
+    _toString: function
+        \anything
+
+class TypeInteger extends Type
+    -> super ...
+    _toString: function
+        \integer
+
+exports <<< { TypeInteger, TypeAnything, TypeBoolean, TypeNumber, TypeString, TypeArray, TypeObject, TypeProperty, Types }
+

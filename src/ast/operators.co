@@ -1,0 +1,27 @@
+{ Member } = require "./literals"
+
+class BinaryOperator
+    @is = function (left, right)
+        new BinaryOperator \is, "is not", left, right
+    @in = function (left, right)
+        new BinaryOperator \in, "not in", left, right
+    @gt = function (left, right)
+        new BinaryOperator \>, null, left, right
+    @gte = function (left, right)
+        new BinaryOperator \>=, null, left, right
+    @lt = function (left, right)
+        new BinaryOperator \<, null, left, right
+    @lte = function (left, right)
+        new BinaryOperator \<=, null, left, right
+    @and = function (left, right)
+        new BinaryOperator \and, null, left, right
+    @or = function (left, right)
+        new BinaryOperator \or, null, left, right
+
+    (@op, @not_op, @left, @right) ->
+        @negated = false
+        @not_op ?= @op
+        @left ?= new Member \$
+
+exports <<< { BinaryOperator }
+

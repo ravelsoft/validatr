@@ -2,23 +2,26 @@
 
 optimist = require "optimist"
     .usage "Transform a validatr formatted file or stdin\nUsage: $0 [options] file\n       $0 [options]"
-    .boolean [\help, \inline, \jinja, \j, \i]
+    .boolean [\help]
 
     .alias do
         help: \h
-        inline: \i
-        jinja: \j
 
     .describe do
         help: "Show this help"
-        inline: "Suppress the indentation in the output file"
-        jinja: "Activate the jinja mode"
 
 argv = optimist.argv
 
 fs = require "fs"
 util = require "util"
 grammar = require "./grammar"
+
+function parse (data)
+    try
+        grammar.parse data
+    catch e
+        console.log "#{e.message}"
+        return ""
 
 if argv.help
     console.log optimist.help()
@@ -30,7 +33,7 @@ if argv._.length >= 1
         if err
             console.warn err.message
         else
-            res = grammar.parse data, inline: argv.inline, jinja: argv.jinja
+            res = parse data
             util.print res
 else
     process.stdin.resume()
@@ -43,5 +46,5 @@ else
 
     # When read, process it.
     <- process.stdin.on "end"
-    util.print grammar.parse data, inline: argv.inline, jinja: argv.jinja
+    util.print parse data
 

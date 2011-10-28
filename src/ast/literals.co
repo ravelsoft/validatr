@@ -1,0 +1,34 @@
+class Number
+    (@num ? 0) ->
+    toString: function
+        return @num.toString!
+
+class String
+    (@str ? "") ->
+    toString: function
+        return "\"#{@str}\""
+
+class List
+    (@list) ->
+    toString: function
+        s = (l.toString! for l of @list).join " "
+        return "(#s)"
+
+class Member
+    (@path) ->
+    toString: function
+        return @path
+
+class Boolean 
+    (@value) ->
+    toString: function
+        if @value then return \true else return \false
+
+class FunCall
+    (@name, @args ? []) ->
+    toString: function
+        ar = (a.toString! for a of @args).join ", "
+        return "#{@name}(#ar)"
+
+exports <<< { String, Number, List, Member, Boolean, FunCall }
+
