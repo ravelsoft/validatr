@@ -1,0 +1,16 @@
+
+class Visitor
+    (@nodes) ->
+
+    visit: function (node)
+        
+        visitor = @nodes[node.constructor?.displayName ? ""]
+
+        if not visitor?
+            #throw new Error "No visitor for #{node.constructor?.displayName ? "Not an object"}"
+            return "!!#{node.constructor?.displayName ? "<not_an_object>: #{node}"}"
+
+        return visitor.call this, node
+
+exports <<< { Visitor }
+

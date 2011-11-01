@@ -1,13 +1,15 @@
 
 ->
-    { TypeString, TypeRefCall, TypeRefDecl, TypeAnything, 
+    { TypeString, TypeAnything, 
         TypeNumber, TypeBoolean, TypeDate, TypeInteger, 
-        TypeObject, TypeArray, ArrayRange, TypeProperty,
-        Types,
+        TypeObject, TypeArray, ArrayRange, TypeProperty, TypePropertyList
+        TypeChoice, TypeRef, TypeRefCall, TypeNull, TypeUndefined
 
         BinaryOperator,
 
-        String, Typeumber, List, Member, Boolean, FunCall
+        CIf,
+
+        LString, LNumber, LList, LVariable, LBoolean, LFunCall
     } = require './ast'
 
 toplevel
@@ -15,36 +17,55 @@ toplevel
 
 type
     = decl:ref_decl? t:type_choice ->
+        if decl
+            return new TypeRef decl, t
         return t
-    / call:ref_call
 
 type_choice
     = __? type:type_single typearr:(PIPE t:type_single { return t; })* ->
-        types = new Types!
+        types = new TypeChoice!
         types.addType type
         for t of typearr
             types.addType t
         return types
 
 type_single
-    = type:(array
-    / object
-    / string
+    = type:(string
     / date
     / number
     / integer
     / boolean
-    / anything) validation:boolean_expression? ->
+    / null
+    / undefined
+    / anything / ref_call) validation:boolean_expression? assignement:assignement? ->
+        # FIXME add validation
+        if validation
+            type.validation = validation
+        return type
+    / validation:boolean_expression? type:(array / object) assignement:assignement? ->
         # FIXME add validation
         if validation
             type.validation = validation
         return type
 
 ref_decl
-    = AMPERSAND string_simple
+    = AMPERSAND name:string_simple ->
+        return name
 
 ref_call
-    = STAR string_simple
+    = STAR name:string_simple ->
+        return new TypeRefCall name
+
+assignement
+    = AS v:variable ->
+        return v
+
+top_level_assignement
+    # FIXME
+    = SET v:variable AS l:literal ->
+        return ""
+    / SET r:ref_call AS t:type_choice ->
+        return ""
 
 array
     = LBRACKET type:type? RBRACKET ->
@@ -57,6 +78,7 @@ object
         for o of props
             obj.addProperty o
         return obj
+
     / props:property+ ->
         obj = new TypeObject!
         for o of props
@@ -64,22 +86,30 @@ object
         return obj
 
 property
-    = __? name:string_literal  __? ":" type:type nul:nullable? att:(optional { return "optional"; } / default)?  ->
+    = __? name:string_literal  __? ":" type:type def:default?  ->
         prop = new TypeProperty name, type
-        if att is \optional
-            prop.setOptional!
-        if att instanceof Object
-            prop.setDefault def
-        if nul
-            prop.setNullable!
         return prop
 
+    / conditional_property
+
+conditional_property
+    = IF cond:boolean_expression props:property+ elifs:(ELIF cond:boolean_expression props:property+ { return new CIf(cond, new TypePropertyList(props)); })* else_part:(ELSE props:property+ { return props; })? ENDIF ->
+        cif = new CIf cond, new TypePropertyList props
+        for e of elifs
+            cif.addElse e
+        if else_part
+            cif.addElse new TypePropertyList else_part
+        return cif
         
     # / regexp_literal
 
-nullable = __? "nullable"
-optional = __? "optional"
 default = __? "default" literal
+
+null
+    = __? "null" -> return new TypeNull
+
+undefined
+    = __? "undefined" -> return new TypeUndefined
 
 date 
     = __? "date" -> return new TypeDate
@@ -113,7 +143,7 @@ expression
         return op
 
 expression_op
-    = op:(IN / NOT op:IN { op.negated = true; return op; } ) container:(list / member / function_call) ->
+    = op:(IN / NOT op:IN { op.negated = true; return op; } ) container:(variable / list / function_call) ->
         op.right = container
         return op
             
@@ -132,10 +162,10 @@ COMP_OP = LTE / GTE / LT / GT
  */
 literal
     = __? lit:( function_call
+          / variable
           / number_literal
           / string_literal
           / list
-          / member
           / boolean_literal
           / null ) -> return lit
 
@@ -144,41 +174,41 @@ literal
  */
 list
     = LPAREN lits:(li:literal { return li; })+ RPAREN ->
-        return new List lits
+        return new LList lits
 
 string_literal
-    = "'" str:("\\'" / [^\'])* "'" -> return new String str.join ""
-    / '"' str:("\\\"" / [^\"])*  '"' -> return new String str.join ""
-    / str:string_simple -> return new String str
+    = "'" str:("\\'" / [^\'])* "'" -> return new LString str.join ""
+    / '"' str:("\\\"" / [^\"])*  '"' -> return new LString str.join ""
+    / str:string_simple -> return new LString str
 
 boolean_literal
     = TRUE / FALSE
 
 /**
- *  FIXME: member should have a nice syntax !
- */
-member
-    # FIXME should be better !
-    = DOLLAR ->
-        return new Member \$
-
-/**
  *  A function call.
  */
 function_call
-    = name:string_regular LPAREN member RPAREN ->
+    = name:string_regular LPAREN variable RPAREN ->
         # FIXME should be able to give arguments
-        return new FunCall name.str, [new Member \$]
+        return new LFunCall name.str, [new LVariable ""]
     / name:string_regular EXCLAMATION ->
-        return new FunCall name.str, [new Member \$]
+        return new LFunCall name.str, [new LVariable ""]
 
 /**
  *  A simple string for label matching.
  */
 string_simple
-    = __? f:[^:\t\+\n\(\) ] s:[^:\t\+\n\) ]+ -> 
+    = __? f:[^:\t\+\n\(\)\$ ] s:[^:\t\+\n\) ]+ -> 
         str = f + s.join ""
         return str
+
+safe_identifier
+    = str:[a-zA-Z_$] str2:[a-zA-Z_0-9$]* ->
+        return str + str2.join ""
+
+variable
+    = DOLLAR str:safe_identifier? ->
+        return new LVariable str
 
 /**
  *  A string as encountered in regular programming languages.
@@ -186,12 +216,12 @@ string_simple
 string_regular
     = __? f:[a-zA-Z_] s:[a-zA-Z_0-9]+ ->
         str = f + s.join ""
-        return new String str
+        return new LString str
 
 number_literal
     = n:[0-9]+ comma:("." e:[0-9]+ { return '.' + e.join(""); })? ->
         n = (n.join "") + comma
-        return new Number n
+        return new LNumber n
 
 integer
     = __? number:[0-9]+ -> return number.join ""
@@ -225,6 +255,13 @@ PIPE        = __? "|"
 EXCLAMATION = __? "!"
 SHARP       = __? "#"
 
+INCLUDE     = __? "include"
+SET         = __? "set"
+IF          = __? "if"
+ELIF        = __? "elif"
+ELSE        = __? "else"
+ENDIF       = __? "endif"
+AS          = __? "as"
 IN          = __? "in" { return BinaryOperator["in"](); }
 NOT         = __? "not"
 IS          = __? "is" { return BinaryOperator.is(); }

@@ -21,7 +21,8 @@
         "validatr" : "./lib/command.js"
      },
      "dependencies" : { 
-        "optimist": "0.2.3"
+        "optimist": "0.2.3",
+        "jinjs": "latest"
      },
      "devDependencies" : {
         "pegco": "latest",

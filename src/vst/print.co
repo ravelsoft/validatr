@@ -1,0 +1,150 @@
+
+{ Visitor } = require './base'
+
+function simpleType (name, node)
+    s = [ name ]
+    if node.validation
+        s.push @visit node.validation
+    return s.join " "
+
+
+exports.printVisitor = new Visitor do
+
+    /**
+     *
+     */
+    TypeChoice: function (node)
+        s = []
+
+        for c of node.types
+            s.push @visit c
+
+        return s.join " | "
+
+    /**
+     *
+     */
+    TypeObject: function (node)
+        s = [ "{" ]
+
+        s.push @visit node.properties
+
+        s.push "}"
+
+        return s.join " "
+
+    /**
+     *
+     */
+    TypeArray: function (node)
+        s = [ "[" ]
+        s.push @visit node.inner_type
+        s.push "]"
+
+        return s.join " "
+
+    TypePropertyList: function (node)
+        s = []
+
+        for p of node.list
+            s.push @visit p
+
+        return s.join " "
+
+    /**
+     *
+     */
+    TypeProperty: function (node)
+        s = [(@visit node.name) + ":"]
+
+        s.push @visit node.inner_type
+
+        return s.join " "
+
+    TypeRef: function (node)
+        return "&#{node.name} " + @visit node.type
+
+    TypeRefCall: function (node)
+        return "*#{node.name}"
+
+    TypeString: function (node)
+        return simpleType.call this, \string, node
+        
+    TypeNumber: function (node)
+        return simpleType.call this, \number, node
+        
+    TypeDate: function (node)
+        return simpleType.call this, \date, node
+        
+    TypeBoolean: function (node)
+        return simpleType.call this, \boolean, node
+        
+    TypeNull: function (node)
+        return simpleType.call this, \null, node
+        
+    TypeAnything: function (node)
+        return simpleType.call this, \anything, node
+        
+    TypeUndefined: function (node)
+        return simpleType.call this, \undefined, node
+        
+
+    #####################################################
+
+    BinaryOperator: function (node)
+        s = []
+
+        s.push @visit node.left
+
+        if node.negated
+            s.push node.not_op
+        else
+            s.push node.op
+
+        s.push @visit node.right
+
+        return s.join " "
+
+    #####################################################
+
+    LString: function (node)
+        return "\"#{node.str}\""
+
+    LVariable: function (node)
+        return "$#{node.name}"
+
+    LNumber: function (node)
+        return "#{node.num}"
+
+    LFunCall: function (node)
+        # FIXME ARGUMENTS
+        args = []
+        for a of node.args
+            args.push @visit a
+        return "#{node.name}(#{args.join ", "})"
+
+    LList: function (node)
+        s = []
+
+        for i of node.list
+            s.push @visit i
+
+        return "(#{s.join " "})"
+
+    ##########################################################
+
+    CIf: function (node)
+        s = []
+
+        s.push \if
+        s.push @visit node.cond
+        s.push @visit node.then
+
+        if node.otherwise
+            s.push \else
+            s.push @visit node.otherwise
+        #    s.push node.otherwise
+
+        s.push \endif
+        return s.join " "
+

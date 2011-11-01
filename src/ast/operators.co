@@ -1,4 +1,4 @@
-{ Member } = require "./literals"
+{ LVariable } = require "./literals"
 
 class BinaryOperator
     @is = function (left, right)
@@ -21,7 +21,7 @@ class BinaryOperator
     (@op, @not_op, @left, @right) ->
         @negated = false
         @not_op ?= @op
-        @left ?= new Member \$
+        @left ?= new LVariable ""
 
 exports <<< { BinaryOperator }
 

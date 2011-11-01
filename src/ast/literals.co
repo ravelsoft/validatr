@@ -1,34 +1,20 @@
-class Number
+class LNumber
     (@num ? 0) ->
-    toString: function
-        return @num.toString!
 
-class String
+class LString
     (@str ? "") ->
-    toString: function
-        return "\"#{@str}\""
 
-class List
+class LList
     (@list) ->
-    toString: function
-        s = (l.toString! for l of @list).join " "
-        return "(#s)"
 
-class Member
-    (@path) ->
-    toString: function
-        return @path
-
-class Boolean 
+class LBoolean 
     (@value) ->
-    toString: function
-        if @value then return \true else return \false
 
-class FunCall
+class LFunCall
     (@name, @args ? []) ->
-    toString: function
-        ar = (a.toString! for a of @args).join ", "
-        return "#{@name}(#ar)"
 
-exports <<< { String, Number, List, Member, Boolean, FunCall }
+class LVariable
+    (@name) ->
+
+exports <<< { LString, LNumber, LList, LBoolean, LFunCall, LVariable }
 

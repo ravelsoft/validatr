@@ -15,11 +15,15 @@ argv = optimist.argv
 fs = require "fs"
 util = require "util"
 grammar = require "./grammar"
+{ printVisitor } = require "./vst"
 
 function parse (data)
     try
-        grammar.parse data
+        res = grammar.parse data
+        # console.log "Done parsing"
+        return (printVisitor.visit res) + '\n'
     catch e
+        console.log e.stack
         console.log "#{e.message}"
         return ""
 

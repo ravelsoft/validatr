@@ -1,0 +1,14 @@
+
+class CIf
+    (@cond, @then, @otherwise) ->
+
+    addElse: function (elsenode)
+        if @otherwise?
+            if @otherwise not instanceof CIf
+                throw new Error "You already set an Else clause."
+            @otherwise.addElse elsenode
+        else
+            @otherwise = elsenode
+
+exports <<< { CIf }
+

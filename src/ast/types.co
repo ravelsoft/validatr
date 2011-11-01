@@ -4,59 +4,36 @@
 class Type
     ->
         @validation = null
-    toString: function
-        s = @_toString!
-        if @validation
-            s += " " + @validation.toString!
-        return s
-        
 
-class Types
+class TypeChoice
     (@types ? []) ->
 
     addType: function (type)
         @types.push type
 
-    toString: function
-        types = (t.toString! for t of @types)
-        return types.join " | "
-
 class TypeProperty
     (@name, @inner_type) ->
-        @optional = false
         @default = null
-        @nullable = false
-
-    setOptional: function
-        @optional = true
 
     setDefault: function (literal)
         # FIXME find out about if literal is okay.
         @default = literal
+   
+class TypePropertyList
+    (@list ? []) ->
 
-    setTypeullable: function
-        @nullable = true
+    push: function (elt)    
+        @list.push elt
 
-    toString: function
-        return "#{@name}: #{@inner_type.toString!}"
-        
 /**
  *
  */
 class TypeArray extends Type
     (@inner_type) ->
         super ...
-        @modifier = null
 
         if not @inner_type
             @inner_type = new TypeAnything!
-
-    setModifiers: function (mod)
-        # FIXME control mods type
-        @modifier = mod
-
-    _toString: function
-        return "[ #{@inner_type.toString!} ]"
 
 /**
  *  The Object class
@@ -64,44 +41,52 @@ class TypeArray extends Type
 class TypeObject extends Type
     ->
         super ...
-        @properties = []
+        @properties = new TypePropertyList
 
     addProperty: function (prop)
-        if prop not instanceof TypeProperty
-            throw new Error "Can't add a non property to an Object Typeode"
+        #if prop not instanceof TypeProperty
+        #    throw new Error "Can't add a non property to an Object Typeode"
 
         @properties.push prop
 
-    _toString: function
-        s = "{ "
-        s += (p.toString! for p of @properties).join " "
-        s += " }"
-        return s
-
 class TypeString extends Type
     -> super ...
-    _toString: function  
-        \string
         
 class TypeNumber extends Type
     -> super ...
-    _toString: function
-        \number
 
 class TypeBoolean extends Type
     -> super ...
-    _toString: function
-        \boolean
 
 class TypeAnything extends Type
     -> super ...
-    _toString: function
-        \anything
 
 class TypeInteger extends Type
     -> super ...
-    _toString: function
-        \integer
 
-exports <<< { TypeInteger, TypeAnything, TypeBoolean, TypeNumber, TypeString, TypeArray, TypeObject, TypeProperty, Types }
+class TypeDate extends Type
+    -> super ...
+
+class TypeNull extends Type
+    -> super ...
+
+class TypeUndefined extends Type
+    -> super ...
+
+class TypeRef extends Type
+    types = {}
+
+    @declare = function (name, ref)
+        types[name] = ref
+
+    (@name, @type) -> 
+        super ...
+        TypeRef.declare name, this
+
+class TypeRefCall extends Type
+    (@name) ->
+    getRef: function
+        return TypeRef.types[@name]
+
+exports <<< { TypeInteger, TypeAnything, TypeBoolean, TypeNumber, TypeString, TypeArray, TypeObject, TypeProperty, TypeChoice, TypeDate, TypeRef, TypeRefCall, TypeNull, TypeUndefined, TypePropertyList }
 

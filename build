@@ -2,6 +2,7 @@
 
 coco = require \coco
 pegco = require \pegco
+{ defaultEnvironment } = require \jinjs
 
 { TaskPool, walk } = require \rbuild
 
@@ -28,6 +29,14 @@ walk "./src", /\.co$/, (abspath, relpath) ->
 
     pool.createTaskForFile abspath, outfile, (data) ->
         coco.compile data
+
+# Compile .co files to .js
+walk "./src", /\.jinjs$/, (abspath, relpath) ->
+
+    outfile = "./lib/" + relpath.replace /jinjs$/, 'js'
+
+    pool.createTaskForFile abspath, outfile, (data) ->
+        defaultEnvironment.getTemplateSourceFromString data
 
 # Compile .pegco files to .js
 walk "./src", /\.pegco$/, (abspath, relpath) ->
