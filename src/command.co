@@ -2,26 +2,32 @@
 
 optimist = require "optimist"
     .usage "Transform a validatr formatted file or stdin\nUsage: $0 [options] file\n       $0 [options]"
-    .boolean [\help]
 
-    .alias do
-        help: \h
+    .options \help, do
+        alias: \h
+        describe: "Show this help"
+        boolean: true
 
-    .describe do
-        help: "Show this help"
+    .options \python, do
+        alias: \y
+        describe: "Compile to Python"
+        boolean: true
 
 argv = optimist.argv
 
 fs = require "fs"
 util = require "util"
 grammar = require "./grammar"
-{ printVisitor } = require "./vst"
+{ printVisitor, pythonVisitor } = require "./vst"
 
 function parse (data)
     try
         res = grammar.parse data
         # console.log "Done parsing"
-        return (printVisitor.visit res) + '\n'
+        if argv.python
+            return (pythonVisitor.visit res) + '\n'
+        else
+            return (printVisitor.visit res) + '\n'
     catch e
         console.log e.stack
         console.log "#{e.message}"

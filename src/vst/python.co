@@ -1,0 +1,278 @@
+{ Visitor } = require './base'
+
+op = do
+    "is": " == "
+    "is not": " != "
+    ">": " > "
+    ">=": " >= "
+    "<": " < "
+    "<=": " <= "
+    "in": " in "
+    "not in": " not in "
+    "and": " and "
+    "or": " or "
+
+class PythonVisitor extends Visitor
+    -> 
+        super ...
+        @indentation = 2
+        @declarations = []
+
+    decl: function (node)
+        return "def #{node.typename}(node, ctx={}):\n    valid = True"
+
+    tcall: function (node)
+        return "valid = valid and #{node.typename}(elt, ctx)"
+
+    simpleType: function (cond, node)
+        s = ["""
+            if not (#cond)#{@extras node}:
+                valid = False
+        """]
+
+        if node.assign
+            s.push """
+                #{@visit node.assign, 0} = elt
+            """
+        return s.join "\n"
+
+    extras: function (node)
+        if node.validation
+            return " or not " + (@visit node.validation, 0)
+        return ""
+
+    indent: function (text)
+        indent = "    " * @indentation
+        return ( (if t then (indent + t) else "") for t of text.split '\n').join '\n'
+
+    visit: function (node, ind ? @indentation)
+        bak = @indentation
+        @indentation = ind
+        s = super node
+        s = @indent s
+        @indentation = bak
+        return s
+
+/**
+ *
+ */
+visitor = new PythonVisitor do
+
+    /**
+     *
+     */
+    TypeChoice: function (node)
+        o = []
+
+        o.push "tmpvalid = False"
+        for t of node.types
+            o.push "if not tmpvalid:"
+            o.push "    valid = True"
+            o.push @visit t, 1
+            o.push "    tmpvalid = valid"
+        o.push "valid = tmpvalid"
+
+        return o.join "\n"
+
+    /**
+     *
+     */
+    TypeObject: function (node)
+        o = [@decl node]
+        o.push "    if not is_dict(node):\n        return False\n"
+        o.push @visit node.properties, 1
+        o.push "    return valid"
+        @declarations.push (o.join "\n")
+
+        return @tcall node
+
+    /**
+     *
+     */
+    TypeArray: function (node)
+        o = []
+        o.push """
+        if is_array(elt):
+            for elt in elt:
+        #{@visit node.inner_type, 2}
+        else:
+            valid = False
+        """
+        return o.join "\n"
+
+    /**
+     *
+     */
+    TypePropertyList: function (node)
+        s = []
+        for n of node.list
+            s.push @visit n, 0
+        return s.join "\n"
+
+    /**
+     *
+     */
+    TypeProperty: function (node)
+        s = []
+        s.push "elt = node.get(#{@visit node.name}, Undefined)"
+        s.push @visit node.inner_type
+        s.push ""
+        return s.join "\n"
+
+    /**
+     *
+     */
+    TypeRef: function (node)
+        o = [@decl node]
+        o.push "    elt = node"
+        o.push @visit node.type, 1
+        o.push "    return valid"
+
+        @declarations.push o.join "\n"
+
+        return @tcall node
+
+    TypeDate: function (node)
+        # FIXME LACKING TYPE COERCION FOR THE DATE.
+        return @simpleType "isinstance(elt, datetime)", node
+
+    TypeRefCall: function (node)
+        return @tcall node.getRef!
+
+    TypeString: function (node)
+        return @simpleType "isinstance(elt, unicode) or isinstance(elt, str)", node
+
+    TypeUndefined: function (node)
+        return @simpleType "elt is Undefined", node
+
+    TypeNumber: function (node)
+        return @simpleType "isinstance(elt, int) or isinstance(elt, float)", node
+
+    TypeBoolean: function (node)
+        return @simpleType "elt is True or elt is False", node
+
+    TypeNull: function (node)
+        return @simpleType "elt is None", node
+
+    ###################### LITERALS #############################
+
+    /**
+     *
+     */
+    LString: function (node)
+        return "'#{node.str}'"
+
+    LNumber: function (node)
+        return node.num
+
+    LVariable: function (node)
+        if node.name
+            return "ctx['#{node.name}']"
+        else
+            return "elt"
+
+    LFunCall: function (node)
+        ar = []
+        for a of node.args
+            ar.push @visit a
+        ar = ar.join ", "
+
+        return "#{node.name}(#ar)"
+
+    LList: function (node)
+        elts = []
+
+        for e of node.list
+            elts.push @visit e, 0
+
+        # python wants a tuple as ('yeah',) or (,) if it is empty.
+        if elts.length is 0
+            elts = ['', '']
+
+        if elts.length is 1
+            elts.push ''
+
+        return "(#{elts.join ", "})"
+
+    LBoolean: function (node)
+        if node.value
+            return \True
+        return \False
+
+    LUndefined: function (node)
+        return "Undefined"
+
+    LNull: function (node)
+        return "None"
+
+    ################################################################
+
+    BinaryOperator: function (node)
+        s = ["("]
+
+        s.push @visit node.left, 0
+        
+        if node.negated
+            s.push op[node.not_op]
+        else
+            s.push op[node.op]
+
+        s.push @visit node.right, 0
+        s.push ")"
+
+        return s.join ""
+
+    #################################################################
+
+    CIf: function (node)
+        s = []
+
+        s.push "if " + (@visit node.cond, 0) + ":"
+        s.push @visit node.then, 1
+
+        if node.otherwise
+            s.push "else:"
+            s.push @visit node.otherwise, 1
+
+        return s.join "\n"
+
+exports.pythonVisitor = do
+    visit: function (node)
+        visit = visitor.visit node, 2
+
+        return """
+from datetime import datetime
+
+# Class used to mimick the Undefined type.
+class Undefined:
+    pass
+
+def length(elt):
+    return len(elt)
+    
+def is_dict(elt):
+    return True
+
+#################################################
+#       GENERATED CODE BELOW
+#################################################
+
+#{visitor.declarations.join "\n\n"}
+
+#################################################
+#       END OF GENERATED CODE
+#################################################
+
+# The validation function
+def validate(node, strict=False, ctx={}):
+    valid = True
+
+    try:
+        if strict:
+            ctx['*strict'] = True
+
+#visit
+        return valid
+    except Exception, e:
+        return False
+"""

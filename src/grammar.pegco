@@ -9,7 +9,7 @@
 
         CIf,
 
-        LString, LNumber, LList, LVariable, LBoolean, LFunCall
+        LString, LNumber, LList, LVariable, LBoolean, LFunCall, LNull, LUndefined
     } = require './ast'
 
 toplevel
@@ -23,11 +23,13 @@ type
 
 type_choice
     = __? type:type_single typearr:(PIPE t:type_single { return t; })* ->
-        types = new TypeChoice!
-        types.addType type
-        for t of typearr
-            types.addType t
-        return types
+        if typearr.length > 0
+            types = new TypeChoice!
+            types.addType type
+            for t of typearr
+                types.addType t
+            return types
+        return type
 
 type_single
     = type:(string
@@ -41,11 +43,13 @@ type_single
         # FIXME add validation
         if validation
             type.validation = validation
+        type.assign = assignement or null
         return type
     / validation:boolean_expression? type:(array / object) assignement:assignement? ->
         # FIXME add validation
         if validation
             type.validation = validation
+        type.assign = assignement or null
         return type
 
 ref_decl
@@ -161,13 +165,14 @@ COMP_OP = LTE / GTE / LT / GT
  *
  */
 literal
-    = __? lit:( function_call
+    = __? lit:(lundefined
+          / lnull
+          / function_call
           / variable
           / number_literal
           / string_literal
           / list
-          / boolean_literal
-          / null ) -> return lit
+          / boolean_literal ) -> return lit
 
 /**
  *
@@ -226,8 +231,12 @@ number_literal
 integer
     = __? number:[0-9]+ -> return number.join ""
 
-null
-    = "null"
+lnull
+    = "null" -> return new LNull
+
+lundefined
+    = "undefined" -> return new LUndefined
+
 
 # comments !
 __

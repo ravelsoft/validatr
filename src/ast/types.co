@@ -2,25 +2,33 @@
  *
  */
 class Type
-    ->
-        @validation = null
+    ids = 0
 
-class TypeChoice
+    (@typename ? "type") ->
+        ids := ids + 1
+        @typename += ids
+        @validation = null
+        @assign = null
+
+class TypeChoice extends Type
     (@types ? []) ->
+        super "choice"
 
     addType: function (type)
         @types.push type
 
-class TypeProperty
+class TypeProperty extends Type
     (@name, @inner_type) ->
+        super "property"
         @default = null
 
     setDefault: function (literal)
         # FIXME find out about if literal is okay.
         @default = literal
    
-class TypePropertyList
+class TypePropertyList extends Type
     (@list ? []) ->
+        super "proplist"
 
     push: function (elt)    
         @list.push elt
@@ -30,7 +38,7 @@ class TypePropertyList
  */
 class TypeArray extends Type
     (@inner_type) ->
-        super ...
+        super "array"
 
         if not @inner_type
             @inner_type = new TypeAnything!
@@ -40,7 +48,7 @@ class TypeArray extends Type
  */
 class TypeObject extends Type
     ->
-        super ...
+        super "object"
         @properties = new TypePropertyList
 
     addProperty: function (prop)
@@ -50,37 +58,37 @@ class TypeObject extends Type
         @properties.push prop
 
 class TypeString extends Type
-    -> super ...
+    -> super "string"
         
 class TypeNumber extends Type
-    -> super ...
+    -> super "number"
 
 class TypeBoolean extends Type
-    -> super ...
+    -> super "boolean"
 
 class TypeAnything extends Type
-    -> super ...
+    -> super "anything"
 
 class TypeInteger extends Type
-    -> super ...
+    -> super "anything"
 
 class TypeDate extends Type
-    -> super ...
+    -> super "anything"
 
 class TypeNull extends Type
-    -> super ...
+    -> super "null"
 
 class TypeUndefined extends Type
-    -> super ...
+    -> super "undefined"
 
 class TypeRef extends Type
-    types = {}
+    @types = {}
 
     @declare = function (name, ref)
-        types[name] = ref
+        @types[name] = ref
 
     (@name, @type) -> 
-        super ...
+        super "ref_#{@name}"
         TypeRef.declare name, this
 
 class TypeRefCall extends Type
