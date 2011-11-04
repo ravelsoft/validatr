@@ -1,1 +1,5 @@
 [ number ]
+---
+[], [1, 2], [1]
+---
+true, false, "prout", {}, 1

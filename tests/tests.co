@@ -2,7 +2,7 @@
 vows = require \vows
 { join } = require \path
 { walk } = require \rbuild
-{ readFile, stat } = require \fs
+{ readFileSync, stat } = require \fs
 { argv }: optimist = require \optimist
     .usage "$0: run the test suite."
     .alias \verbose, \v
@@ -11,18 +11,17 @@ vows = require \vows
     .describe \help, "You're staring at it"
 { spawn } = require \child_process
 { doesNotThrow, equal, notEqual } = require \assert
+{ parallel } = require \async
 
 { parse } = require '../lib/grammar'
 { printVisitor, pythonVisitor } = require '../lib/vst'
 
-function execPython (python_code, json_file, done)
+function execPython (python_code, json, done)
     code = """
         from validatr import *
         #python_code
-        from simplejson import load
-        f = open("#json_file", "r")
-        o = load(f)
-        f.close()
+        from simplejson import loads
+        o = loads('''[ #json ]''')
 
         for obj in o:
             print unicode(validator.validate(obj)) + " : -" + unicode(obj) + "-"
@@ -49,84 +48,72 @@ if argv.v
 else
     reporter = require \vows/lib/vows/reporters/dot-matrix
 
+function intent (cbk)
+    try
+        return cbk!
+    catch e
+        return null
+
 walk "#__dirname", /.*\.vld$/, ((abs, rel) ->
-    extless = abs.replace /\.vld$/, ''
 
-    parseBatch[rel] =
+    file = readFileSync rel, \utf-8
+    [ vld, valid ? "", invalid ? "" ] = file.split '---'
+
+    valid = valid.trim!
+    invalid = invalid.trim!
+    vld = vld.trim!
+
+    parsed_vld = null
+    python_code = null
+
+    intent -> parsed_vld := parse vld
+    intent -> python_code := pythonVisitor.visit parsed_vld
+
+    test = parseBatch[rel] =
         topic: ->
-            readFile abs, \utf-8, @callback
+            (err, results) <~ parallel do
+                valids: (cbk) ->
+                    if not valid
+                        cbk null
+                        return
+                    execPython python_code, valid, cbk
+                invalids: (cbk) ->
+                    if not invalid
+                        cbk null
+                        return
+                    execPython python_code, invalid, cbk
+            @callback err, results
+                    
 
-        "Parsing": 
-            topic: function (data)
-                res = ""
-                doesNotThrow function testParse
-                    try
-                        res := parse data
-                    catch e
-                        res := null
-                return res
+        "can be parsed without error": ->
+            notEqual parsed_vld, null
 
-            "Can be parsed": (data) ->
-                notEqual data, ""
-                notEqual data, null
-                notEqual data, undefined
+        "can be printed and re-printed": ->
+            res1 = ""
 
-            "Can be printed and re-printed": (data) ->
-                res1 = ""
+            doesNotThrow function testPrint
+                res1 := printVisitor.visit parsed_vld
 
-                doesNotThrow function testPrint
-                    res1 := printVisitor.visit data
+            doesNotThrow function testRePrint
+                res2 = parse res1
+                equal res1, printVisitor.visit res2
 
-                doesNotThrow function testRePrint
-                    res2 = parse res1
-                    equal res1, printVisitor.visit res2
+    if parsed_vld
+        test."compiles to python without error": (data) ->
+            notEqual python_code, null
 
-            "/ Python":
-                topic: function (data)
-                    res = ""
-                    doesNotThrow function parsePython
-                        res := pythonVisitor.visit data
-                    return res
+    if python_code
+        if valid
+            test."python valids (#valid)" = ({ valids }) ->
+                { stdout, stderr } = valids
+                equal stderr, ''
+                equal (stdout.replace /^True.*$/mg , '' .replace /\n/g, ''), ''
 
-                "compiles to python": (data) ->
-                    notEqual data, ""
-
-                "/ validating objects":
-                    topic: function (python_code, data)
-                        (err_valid, stats) <~ stat "#extless.valid"
-                        (err_invalid, stats) <~ stat "#extless.invalid"
-                        @callback null, { err_valid, python_code, err_invalid }
-
-                    "/ Valids":
-                        topic: ({ err_valid, python_code }) ->
-                            if not err_valid?
-                                execPython python_code, "#extless.valid", @callback
-                            else
-                                @callback null, { stderr:undefined, stdout:undefined }
-                            return undefined
-
-                        "are valid": ({ stdout, stderr }) ->
-                            if not stdout?
-                                return
-
-                            equal stderr, ''
-                            equal (stdout.replace /^True.*$/mg , '' .replace /\n/g, ''), ''
-
-
-                    "/ Invalids":
-                        topic: ({ err_invalid, python_code }) ->
-                            if not err_invalid?
-                                execPython python_code, "#extless.invalid", @callback
-                            else
-                                @callback null, { stdout:undefined, stderr:undefined }
-                            return undefined
-
-                        "are invalid": ({ stdout, stderr }) ->
-                            if not stdout?
-                                return
-
-                            equal stderr, ''
-                            equal (stdout.match /^True.*/m), null
+        if invalid
+            test."python invalids (#invalid)" = ({ invalids }) ->
+                { stdout, stderr } = invalids
+                equal stderr, ''
+                equal (stdout.match /^True.*/m), null
 
 
     ), ->

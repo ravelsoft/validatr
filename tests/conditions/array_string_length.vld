@@ -1,2 +1,5 @@
 length! >= 2 [ string length! > 4 ]
-
+---
+["asdflkj", "asdlfja"], [ "afsdkjflaksdj", "dsafjasdf", "reuweoiru" ]
+---
+[ "aa", "ab" ], [ "alsdkfjasl" ]
