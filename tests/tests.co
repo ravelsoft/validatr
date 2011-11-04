@@ -88,7 +88,12 @@ walk "#__dirname", /.*\.vld$/, ((abs, rel) ->
         "can be parsed without error": ->
             notEqual parsed_vld, null
 
-        "can be printed and re-printed": ->
+
+    if parsed_vld
+        test."compiles to python without error" = ->
+            notEqual python_code, null
+
+        test."can be printed and re-printed" = ->
             res1 = ""
 
             doesNotThrow function testPrint
@@ -97,10 +102,6 @@ walk "#__dirname", /.*\.vld$/, ((abs, rel) ->
             doesNotThrow function testRePrint
                 res2 = parse res1
                 equal res1, printVisitor.visit res2
-
-    if parsed_vld
-        test."compiles to python without error": (data) ->
-            notEqual python_code, null
 
     if python_code
         if valid

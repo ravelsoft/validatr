@@ -210,7 +210,7 @@ function_call
  *  A simple string for label matching.
  */
 string_simple
-    = __? f:[^:\t\+\n\(\)\$ ] s:[^:\t\+\n\) ]+ -> 
+    = __? f:[^:\t\+\n\(\)\$ ] s:[^:\t\+\n\) ]* -> 
         str = f + s.join ""
         return str
 
