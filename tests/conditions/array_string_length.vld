@@ -1,0 +1,2 @@
+length! >= 2 [ string length! > 4 ]
+

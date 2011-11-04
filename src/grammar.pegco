@@ -62,6 +62,8 @@ ref_call
 
 assignement
     = AS v:variable ->
+        if not v.name
+            throw new Error "Can't assign to special variable $"
         return v
 
 top_level_assignement
@@ -92,6 +94,8 @@ object
 property
     = __? name:string_literal  __? ":" type:type def:default?  ->
         prop = new TypeProperty name, type
+        if def
+            prop.setDefault def
         return prop
 
     / conditional_property
@@ -107,7 +111,9 @@ conditional_property
         
     # / regexp_literal
 
-default = __? "default" literal
+default 
+    = __? "default" lit:literal ->
+        return lit
 
 null
     = __? "null" -> return new TypeNull
@@ -170,9 +176,9 @@ literal
           / function_call
           / variable
           / number_literal
+          / boolean_literal
           / string_literal
-          / list
-          / boolean_literal ) -> return lit
+          / list ) -> return lit
 
 /**
  *
@@ -187,7 +193,8 @@ string_literal
     / str:string_simple -> return new LString str
 
 boolean_literal
-    = TRUE / FALSE
+    = TRUE  -> return new LBoolean true
+    / FALSE -> return new LBoolean false
 
 /**
  *  A function call.

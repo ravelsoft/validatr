@@ -1,0 +1,134 @@
+#!/usr/bin/env coco
+vows = require \vows
+{ join } = require \path
+{ walk } = require \rbuild
+{ readFile, stat } = require \fs
+{ argv }: optimist = require \optimist
+    .usage "$0: run the test suite."
+    .alias \verbose, \v
+    .alias \help, \h
+    .describe \verbose, "Show all the tests"
+    .describe \help, "You're staring at it"
+{ spawn } = require \child_process
+{ doesNotThrow, equal, notEqual } = require \assert
+
+{ parse } = require '../lib/grammar'
+{ printVisitor, pythonVisitor } = require '../lib/vst'
+
+function execPython (python_code, json_file, done)
+    code = """
+        from validatr import *
+        #python_code
+        from simplejson import load
+        f = open("#json_file", "r")
+        o = load(f)
+        f.close()
+
+        for obj in o:
+            print unicode(validator.validate(obj)) + " : -" + unicode(obj) + "-"
+        """
+
+    cp = spawn "python", ['-c', code]
+
+    stdout = ''
+    stderr = ''
+    cp.stdout.on \data, (data) ->
+        stdout := stdout + data
+    cp.stderr.on \data, (data) ->
+        stderr := stderr + data
+
+    cp.on \exit, ->
+        done null, { stdout, stderr }
+
+
+parseTests = vows.describe "Parsing Tests"
+parseBatch = {}
+
+if argv.v
+    reporter = require \vows/lib/vows/reporters/spec
+else
+    reporter = require \vows/lib/vows/reporters/dot-matrix
+
+walk "#__dirname", /.*\.vld$/, ((abs, rel) ->
+    extless = abs.replace /\.vld$/, ''
+
+    parseBatch[rel] =
+        topic: ->
+            readFile abs, \utf-8, @callback
+
+        "Parsing": 
+            topic: function (data)
+                res = ""
+                doesNotThrow function testParse
+                    try
+                        res := parse data
+                    catch e
+                        res := null
+                return res
+
+            "Can be parsed": (data) ->
+                notEqual data, ""
+                notEqual data, null
+                notEqual data, undefined
+
+            "Can be printed and re-printed": (data) ->
+                res1 = ""
+
+                doesNotThrow function testPrint
+                    res1 := printVisitor.visit data
+
+                doesNotThrow function testRePrint
+                    res2 = parse res1
+                    equal res1, printVisitor.visit res2
+
+            "/ Python":
+                topic: function (data)
+                    res = ""
+                    doesNotThrow function parsePython
+                        res := pythonVisitor.visit data
+                    return res
+
+                "compiles to python": (data) ->
+                    notEqual data, ""
+
+                "/ validating objects":
+                    topic: function (python_code, data)
+                        (err_valid, stats) <~ stat "#extless.valid"
+                        (err_invalid, stats) <~ stat "#extless.invalid"
+                        @callback null, { err_valid, python_code, err_invalid }
+
+                    "/ Valids":
+                        topic: ({ err_valid, python_code }) ->
+                            if not err_valid?
+                                execPython python_code, "#extless.valid", @callback
+                            else
+                                @callback null, { stderr:undefined, stdout:undefined }
+                            return undefined
+
+                        "are valid": ({ stdout, stderr }) ->
+                            if not stdout?
+                                return
+
+                            equal stderr, ''
+                            equal (stdout.replace /^True.*$/mg , '' .replace /\n/g, ''), ''
+
+
+                    "/ Invalids":
+                        topic: ({ err_invalid, python_code }) ->
+                            if not err_invalid?
+                                execPython python_code, "#extless.invalid", @callback
+                            else
+                                @callback null, { stdout:undefined, stderr:undefined }
+                            return undefined
+
+                        "are invalid": ({ stdout, stderr }) ->
+                            if not stdout?
+                                return
+
+                            equal stderr, ''
+                            equal (stdout.match /^True.*/m), null
+
+
+    ), ->
+        parseTests.addBatch parseBatch
+        parseTests.run reporter: reporter

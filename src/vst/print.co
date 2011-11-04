@@ -25,10 +25,13 @@ exports.printVisitor = new Visitor do
      *
      */
     TypeObject: function (node)
-        s = [ "{" ]
+        s = [ ]
 
+        if node.validation
+            s.push @visit node.validation
+
+        s.push "{"
         s.push @visit node.properties
-
         s.push "}"
 
         return s.join " "
@@ -37,7 +40,10 @@ exports.printVisitor = new Visitor do
      *
      */
     TypeArray: function (node)
-        s = [ "[" ]
+        s = []
+        if node.validation
+            s.push @visit node.validation
+        s.push "["
         s.push @visit node.inner_type
         s.push "]"
 
@@ -58,6 +64,8 @@ exports.printVisitor = new Visitor do
         s = [(@visit node.name) + ":"]
 
         s.push @visit node.inner_type
+        if node.default
+            s.push "default " + @visit node.default
 
         return s.join " "
 
@@ -130,6 +138,15 @@ exports.printVisitor = new Visitor do
             s.push @visit i
 
         return "(#{s.join " "})"
+
+    LBoolean: function (node)
+        return if node.value then \true else \false
+
+    LUndefined: function (node)
+        return "undefined"
+
+    LNull: function (node)
+        return "null"
 
     ##########################################################
 
