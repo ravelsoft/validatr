@@ -1,0 +1,6 @@
+a: undefined
+b: string
+---
+{ "b": "hello" }
+---
+{ "a": "haha" }, {"b": "hello", "a": "haha" }, {}
