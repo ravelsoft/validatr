@@ -12,9 +12,11 @@ vows = require \vows
 { spawn } = require \child_process
 { doesNotThrow, equal, notEqual } = require \assert
 { parallel } = require \async
+util = require \util
+vm = require \vm
 
 { parse } = require '../lib/grammar'
-{ printVisitor, pythonVisitor } = require '../lib/vst'
+{ printVisitor, pythonVisitor, javascriptVisitor } = require '../lib/vst'
 
 function execPython (python_code, json, done)
     code = """
@@ -37,6 +39,31 @@ function execPython (python_code, json, done)
 
     cp.on \exit, ->
         done null, { stdout, stderr }
+
+function execJs (js_code, json, done)
+    code = """
+        var exports = {};
+        #js_code
+
+        var o = [ #json ];
+        var res = false;
+        var ctx = null;
+
+        for (var i = 0; i < o.length; i++) {
+            ctx = new Context();
+            res = exports.validator.validate(o[i], ctx);
+            results.push([ res, o[i], ctx ]);
+        }
+    """
+
+    sandbox = results: [], console: console
+    exc = null
+
+    try
+        vm.runInNewContext code, sandbox
+    catch e
+        exc = e
+    done null, results: sandbox.results, exception: exc
 
 
 parseTests = vows.describe "Parsing Tests"
@@ -64,23 +91,35 @@ walk "#__dirname", /.*\.vld$/, ((abs, rel) ->
 
     parsed_vld = null
     python_code = null
+    js_code = null
 
     intent -> parsed_vld := parse vld
     intent -> python_code := pythonVisitor.visit parsed_vld
+    intent -> js_code := javascriptVisitor.visit parsed_vld
 
     test = parseBatch[rel] =
         topic: ->
             (err, results) <~ parallel do
-                valids: (cbk) ->
+                pyvalids: (cbk) ->
                     if not valid
                         cbk null
                         return
                     execPython python_code, valid, cbk
-                invalids: (cbk) ->
+                pyinvalids: (cbk) ->
                     if not invalid
                         cbk null
                         return
                     execPython python_code, invalid, cbk
+                jsvalids: (cbk) ->
+                    if not valid
+                        cbk null, []
+                        return
+                    execJs js_code, valid, cbk
+                jsinvalids: (cbk) ->
+                    if not invalid
+                        cbk null, []
+                        return
+                    execJs js_code, invalid, cbk
             @callback err, results
                     
 
@@ -104,17 +143,39 @@ walk "#__dirname", /.*\.vld$/, ((abs, rel) ->
 
     if python_code
         if valid
-            test."python valids (#valid)" = ({ valids }) ->
-                { stdout, stderr } = valids
+            test."python valids (#valid)" = ({ pyvalids }: obj) ->
+                { stdout, stderr } = pyvalids
                 equal stderr, ''
                 equal (stdout.replace /^True.*$/mg , '' .replace /\n/g, ''), ''
 
         if invalid
-            test."python invalids (#invalid)" = ({ invalids }) ->
-                { stdout, stderr } = invalids
+            test."python invalids (#invalid)" = ({ pyinvalids }) ->
+                { stdout, stderr } = pyinvalids
                 equal stderr, ''
                 equal (stdout.match /^True.*/m), null
 
+    if js_code
+        if valid
+            test."javascript valids (#valid)" = ({ jsvalids }) ->
+                { results, exception } = jsvalids
+
+                equal results instanceof Array, true, "Results is an array"
+                equal exception, null, "Got an exception: #{exception}"
+
+                for v of results
+                    equal v.0, true, "The following test failed: #{util.inspect(v.1)} with errors #{util.inspect(v.2.errors)}"
+                #equal stderr, ''
+                #equal (stdout.replace /^True.*$/mg , '' .replace /\n/g, ''), ''
+
+        if invalid
+            test."javascript invalids (#invalid)" = ({ jsinvalids }) ->
+                { results, exception } = jsinvalids
+
+                equal results instanceof Array, true, "Results is an array"
+                equal exception, null, "Got an exception: #{exception}"
+
+                for v of results
+                    equal v.0, false, "The following test failed: #{util.inspect(v.1)} with errors #{util.inspect(v.2.errors)}"
 
     ), ->
         parseTests.addBatch parseBatch

@@ -24,45 +24,26 @@ class Validator(object):
     """
     """
 
-    def __init__(self, *args):
-        self.parseArgs(args)
+    def __init__(self, **kwargs):
+        if "assign" in kwargs:  
+            self.assign = kwargs["assign"]
+        if "validation" in kwargs:
+            self.validation = kwargs["validation"]
 
     def validate(self, node, ctx=Context(), path=''):
         """ Perform standard validation.
         """
 
-        if self.assign:
+        if "assign" in self.__dict__:
             ctx[self.assign] = node
 
-        if self.validation:
+        if "validation" in self.__dict__:
             res = self.validation(node, ctx)
             if not res:
                 ctx.appendError(path, "validation not passed")
             return res
 
         return True
-
-    def parseArgs(self, args):
-        """ Extract the validation and assignment from the arguments
-            and pop the corresponding items from the arguments array.
-
-            Return the array cleaned from those values
-        """
-        self.validation = None
-        self.assign = None
-
-        ar = []
-        for a in args:
-            if callable(a):
-                self.validation = a
-                continue
-
-            if isinstance(a, unicode) or isinstance(a, str):
-                self.assign = a
-                continue
-            
-            ar.append(a)
-        return ar
 
     def assign(self, node, ctx):
         """ Assign a variable in the context.
@@ -73,9 +54,8 @@ class Validator(object):
 
 class SimpleValidator(Validator):
 
-    def __init__(self, *args):
-        if len(self.parseArgs(args)) is not 0:
-            raise Exception("Useless parameters")
+    def __init__(self, **kwargs):
+        super(SimpleValidator, self).__init__(**kwargs)
 
     def validate(self, node, ctx=Context(), path=''):
         res = self._validate(node)
@@ -119,8 +99,9 @@ class TNull(SimpleValidator):
 #########################################################
 
 class TProperties(Validator):
-    def __init__(self, *args):
+    def __init__(self, *args, **kw):
         self.properties = args
+        super(TProperties, self).__init__(**kw)
 
     def validate(self, node, ctx=Context(), path=''):
         res = True
@@ -129,14 +110,23 @@ class TProperties(Validator):
         return res
 
 class TProperty(Validator):
-    def __init__(self, name, typ, *args):
+    def __init__(self, name, typ, **kw):
         self.typ = typ
         self.name = name
-        self.parseArgs(args)
+
+        if "default" in kw:
+            self.default = kw["default"]
+
+        super(TProperty, self).__init__(**kw)
 
     def validate(self, node, ctx=Context(), path=''):
         path = pathjoin(path, self.name)
         prop = node.get(self.name, Undefined)
+
+        if prop is Undefined and "default" in self.__dict__:
+            node[self.name] = self.default
+            prop = self.default
+
         return self.typ.validate(prop, ctx, path) and \
             super(TProperty, self).validate(prop, ctx, path)
 
@@ -144,10 +134,9 @@ class TObject(Validator):
     """ An Object, that can contain properties.
     """
 
-    def __init__(self, *args):
-        args = self.parseArgs(args)
-
+    def __init__(self, *args, **kw):
         self.properties = args
+        super(TObject, self).__init__(**kw)
 
     def validate(self, node, ctx=Context(), path=''):
         if not hasattr(node, "iteritems"):
@@ -161,11 +150,9 @@ class TObject(Validator):
         return super(TObject, self).validate(node, ctx, path) and res
 
 class TArray(Validator):
-    def __init__(self, typ=None, *args):
-        args = self.parseArgs(args)
-        if len(args) > 0:
-            raise Exception("Left overs...")
+    def __init__(self, typ=None, **kw):
         self.typ = typ
+        super(TArray, self).__init__(**kw)
 
     def validate(self, node, ctx=Context(), path=''):
         if not hasattr(node, "__iter__") or hasattr(node, "iteritems"):
@@ -181,8 +168,9 @@ class TArray(Validator):
         
 
 class TChoice(Validator):
-    def __init__(self, *choices):
+    def __init__(self, *choices, **kw):
         self.choices = self.parseArgs(choices)
+        super(TChoice, self).__init__(**kw)
 
     def validate(self, node, ctx=Context(), path=''):
         # Inhibit the error reporting, since some

@@ -13,12 +13,17 @@ optimist = require "optimist"
         describe: "Compile to Python"
         boolean: true
 
+    .options \javascript, do
+        alias: \j
+        describe: "Compile to Javascript"
+        boolean: true
+
 argv = optimist.argv
 
 fs = require "fs"
 util = require "util"
 grammar = require "./grammar"
-{ printVisitor, pythonVisitor } = require "./vst"
+{ printVisitor, pythonVisitor, javascriptVisitor } = require "./vst"
 
 function parse (data)
     try
@@ -26,6 +31,8 @@ function parse (data)
         # console.log "Done parsing"
         if argv.python
             return (pythonVisitor.visit res) + '\n'
+        else if argv.javascript
+            return (javascriptVisitor.visit res) + '\n'
         else
             return (printVisitor.visit res) + '\n'
     catch e

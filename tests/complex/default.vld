@@ -1,0 +1,6 @@
+a: number as $a default 0
+b: number is $a
+---
+{ "a": 2, "b": 2 }, { "b": 0 }
+---
+{ "a": 1, "b": 2 }, { "b": 1 }

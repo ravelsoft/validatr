@@ -1,0 +1,247 @@
+/**
+ *  Validatr in javascript
+ */
+
+__indexOf = [].indexOf or function __indexOf (x)
+  i = -1
+  l = @length
+
+  while (++i < l) 
+    if @hasOwnProperty(i) && @[i] is x 
+        return i
+
+  return -1
+
+function __in (k, arr)
+    return __indexOf.call(arr, k)
+
+function pathjoin(path1, path2)
+    arr = []
+    if path1 then arr.push path1
+    if path2 then arr.push path2
+    return arr.join "."
+
+/**
+ *
+ */
+class Context
+    ->
+        @errors = []
+        @displayErrors = true
+        @vars = {}
+
+    appendError: function (path, msg)
+        if @displayErrors
+            @errors.push [path, msg]
+
+class Default
+    (@value) ~>
+
+/**
+ *
+ */
+class Validator
+    ->
+        @assign = null
+        @validation = null
+
+    validate: function (node, ctx ? new Context, path ? '')
+
+        if @assign?
+            ctx.vars[@assign] = node
+
+        if @validation
+            res = @validation node, ctx
+            if not res
+                ctx.appendError path, "validation not passed"
+            return res
+
+        return true
+
+    parseArgs: function (args)
+        ar = []
+
+        for a of args
+            if a instanceof Function
+                @validation = a
+                continue
+
+            if typeof a is \string
+                @assign = a
+                continue
+
+            if a instanceof Default
+                @default = a.\value
+
+            ar.push a
+
+        return ar
+
+/**
+ *
+ */
+class SimpleValidator extends Validator
+    ->
+        if @parseArgs arguments .length is not 0
+            throw new Error "Useless parameters in constructor"
+
+    validate: function (node, ctx ? new Context, path ? '')
+        res = @_validate node
+
+        if not res
+            ctx.appendError path, "Not the correct type"
+
+        return res and super node, ctx, path
+
+    /**
+     *  This is meant to be redefined.
+     */
+    _validate: function (node)
+        throw new Error "Not Implemented"
+
+/**
+ *
+ */
+class TDate extends SimpleValidator
+    ~> super ...
+
+/**
+ *
+ */
+class TBoolean extends SimpleValidator
+    ~> super ...
+    _validate: function (node)
+        return node is true or node is false
+
+/**
+ *
+ */
+class TNumber extends SimpleValidator
+    ~> super ...
+    _validate: function (node)
+        return node instanceof Number or typeof node is \number
+
+/**
+ *
+ */
+class TString extends SimpleValidator
+    ~> super ...
+    _validate: function (node)
+        return node instanceof String or typeof node is \string
+
+/**
+ *
+ */
+class TUndefined extends SimpleValidator
+    ~> super ...
+    _validate: function (node)
+        return node is undefined
+
+class TNull extends SimpleValidator
+    ~> super ...
+    _validate: function (node)
+        return node is null
+
+/**
+ *
+ */
+class TProperties extends Validator
+    ~>
+        @properties = arguments
+
+    validate: function (node, ctx ? new Context, path ? '')
+        res = true
+        for p of @properties
+            res = p.validate(node, ctx, path) and res
+        return res
+
+/**
+ *
+ */
+class TProperty extends Validator
+    (@name, @type) ~>
+        @parseArgs arguments
+
+    validate: function (node, ctx ? new Context, path ? '')
+        path = pathjoin path, @name
+        prop = node[@name]
+
+        if prop is undefined and \default in this
+            prop = node[@name] = @default
+
+        return @type.validate(prop, ctx, path) and super(prop, ctx, path)
+
+/**
+ *
+ */
+class TObject extends Validator
+    ~>
+        @properties = @parseArgs arguments
+
+    validate: function (node, ctx ? new Context, path ? '')
+        if typeof node is not \object or node instanceof Array or node is null
+            ctx.appendError path, "not an object"
+            return false
+    
+        res = true
+        for o of @properties
+            res = o.validate(node, ctx, path) and res
+
+        return super(node, ctx, path) and res
+
+/**
+ *
+ */
+class TArray extends Validator
+    (@type) ~>
+        res = @parseArgs arguments
+        if res.length > 1 # There is only ONE type.
+            throw new Error "Too many arguments"
+
+    validate: function (node, ctx ? new Context, path ? '')
+        if node not instanceof Array
+            ctx.appendError path, "Not an array"
+            return false
+
+        res = true
+        if @type
+            for o, idx of node
+                res = @type.validate(o, ctx, pathjoin(path, idx.toString!)) and res
+        return super(node, ctx, path) and res
+
+/**
+ *
+ */
+class TChoice extends Validator
+    ~>
+        @choices = @parseArgs arguments
+
+    validate: function (node, ctx ? new Context, path ? '')
+        # We expect some errors to pop up that may not affect the final
+        # outcome of this check
+        ctx.displayErrors = false
+        
+        found_one = false
+
+        for c of @choices
+            if found_one
+                break
+            found_one = c.validate(node, ctx, path)
+
+        ctx.displayErrors = true
+
+        return super(node, ctx, path) and found_one
+
+/**
+ *
+ */
+class TIf extends Validator
+    (@cond, @then, @otherwise ? null) ~>
+
+    validate: function (node, ctx ? new Context, path ? '')
+        if @cond node, ctx
+            return @then.validate node, ctx, path
+        else
+            if @otherwise
+                return @otherwise.validate node, ctx, path
+        return true

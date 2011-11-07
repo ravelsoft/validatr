@@ -1,19 +1,20 @@
 { Visitor } = require './base'
-{ source: python_module } = require './validatr.py'
+{ readFileSync } = require \fs
+javascript_module = readFileSync "#__dirname/validatr.js.js", \utf-8
 
 op = do
-    "is": " == "
-    "is not": " != "
+    "is": " === "
+    "is not": " !== "
     ">": " > "
     ">=": " >= "
     "<": " < "
     "<=": " <= "
-    "in": " in "
-    "not in": " not in "
-    "and": " and "
-    "or": " or "
+    "in": " __in " # Special case, see below
+    "not in": " not in " # special case, see below
+    "and": " && "
+    "or": " || "
 
-class PythonVisitor extends Visitor
+class JavascriptVisitor extends Visitor
     -> 
         super ...
         @indentation = 2
@@ -49,11 +50,11 @@ class PythonVisitor extends Visitor
 
     opts: function (node, res)
         if node.validation
-            res.push "validation=lambda x, ctx: " + @visit node.validation, 0
+            res.push "function (x, ctx) { return " + (@visit node.validation, 0) + "; }"
         if node.assign
-            res.push "assign='#{node.assign.name}'"
-        if node.default
-            res.push "default=#{@visit node.default, 0}"
+            res.push "'#{node.assign.name}'"
+        if node.\default
+            res.push "Default(#{@visit node.\default, 0})"
 
         return res
 
@@ -65,7 +66,7 @@ class PythonVisitor extends Visitor
 /**
  *
  */
-visitor = new PythonVisitor do
+visitor = new JavascriptVisitor do
 
     /**
      *
@@ -138,7 +139,7 @@ visitor = new PythonVisitor do
      *
      */
     TypeRef: function (node)
-        decl = node.name + " = " + @visit node.type, 0
+        decl = "var " + node.name + " = " + @visit node.type, 0
 
         @declarations.push decl
 
@@ -182,7 +183,7 @@ visitor = new PythonVisitor do
 
     LVariable: function (node)
         if node.name
-            return "ctx.get('#{node.name}', Undefined)"
+            return "ctx.vars['#{node.name}']"
         else
             return "x"
 
@@ -207,7 +208,7 @@ visitor = new PythonVisitor do
         if elts.length is 1
             elts.push ''
 
-        return "(#{elts.join ", "})"
+        return "[#{elts.join ", "}]"
 
     LBoolean: function (node)
         if node.value
@@ -215,24 +216,34 @@ visitor = new PythonVisitor do
         return \False
 
     LUndefined: function (node)
-        return "Undefined"
+        return "undefined"
 
     LNull: function (node)
-        return "None"
+        return "null"
 
     ################################################################
 
     BinaryOperator: function (node)
-        s = ["("]
+        s = []
+        s.push "("
 
-        s.push @visit node.left, 0
-        
-        if node.negated
-            s.push op[node.not_op]
+        if node.op is not \in
+            s.push @visit node.left, 0
+            
+            if node.negated
+                s.push op[node.not_op]
+            else
+                s.push op[node.op]
+
+            s.push @visit node.right, 0
         else
-            s.push op[node.op]
-
-        s.push @visit node.right, 0
+            if node.negated
+                s.push "!"
+            s.push "__in("
+            s.push @visit node.left, 0
+            s.push ", "
+            s.push @visit node.right, 0
+            s.push ")"
         s.push ")"
 
         return s.join ""
@@ -241,7 +252,7 @@ visitor = new PythonVisitor do
 
     CIf: function (node)
         args = []
-        args.push "lambda x, ctx: " + @visit node.cond
+        args.push "function (x, ctx){ return " + (@visit node.cond) + "; }"
         args.push @visit node.then, 1
 
         if node.otherwise
@@ -251,21 +262,20 @@ visitor = new PythonVisitor do
 
         return "TIf(#args)"
 
-exports.pythonVisitor = do
+exports.javascriptVisitor = do
     visit: function (node, options ? {})
         visit = visitor.visit node, 0
-        if not options.exclude_module
-            mod = python_module
-        else
-            mod = 'from validatr import *'
+        mod = javascript_module.toString!
 
         return """
 #mod
 
-def length(elt):
-    return len(elt)
+function length (elt) {
+    // FIXME object length ??
+    return elt.length;
+}
 
 #{visitor.declarations.join "\n\n"}#{if visitor.declarations.length > 0 then "\n\n" else ""}
-validator = #visit
+exports.validator = #visit;
 """
 

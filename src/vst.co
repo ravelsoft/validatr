@@ -1,3 +1,4 @@
 exports <<< require "./vst/print"
 exports <<< require "./vst/python"
+exports <<< require "./vst/javascript"
 

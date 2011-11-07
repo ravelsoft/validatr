@@ -28,7 +28,7 @@ walk "./src", /\.co$/, (abspath, relpath) ->
     outfile = "./lib/" + relpath.replace /co$/, 'js'
 
     pool.createTaskForFile abspath, outfile, (data) ->
-        coco.compile data
+        coco.compile data, bare: true
 
 # Compile .co files to .js
 walk "./src", /\.jinjs$/, (abspath, relpath) ->
