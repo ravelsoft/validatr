@@ -1,0 +1,8 @@
+"a": number as $a
+if $b is undefined
+    "b": number
+endif
+---
+{ "a": 2, "b": 3 }
+---
+{ "a": 4 }

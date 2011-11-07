@@ -51,7 +51,7 @@ class PythonVisitor extends Visitor
         if node.validation
             res.push "lambda x, ctx: " + @visit node.validation, 0
         if node.assign
-            res.push @visit node.assign, 0
+            res.push "'#{node.assign.name}'"
 
         return res
 

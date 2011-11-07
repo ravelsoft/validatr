@@ -1,0 +1,10 @@
+a: string as $a
+if $a is hello
+    b: string
+else
+    c: number
+endif
+---
+{ "a": "hello", "b": "whatever" }, { "a": "nothello", "c": 3 }
+---
+{ "a": "hello" }, { "a": "hello", "c": 3 }, { "a": "nothello", "b": "hey" }
