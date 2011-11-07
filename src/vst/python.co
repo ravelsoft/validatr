@@ -1,4 +1,5 @@
 { Visitor } = require './base'
+{ source: python_module } = require './validatr.py'
 
 op = do
     "is": " == "
@@ -249,10 +250,15 @@ visitor = new PythonVisitor do
         return "TIf(#args)"
 
 exports.pythonVisitor = do
-    visit: function (node)
+    visit: function (node, options ? {})
         visit = visitor.visit node, 0
+        if not options.exclude_module
+            mod = python_module
+        else
+            mod = 'from validatr import *'
 
         return """
+#mod
 
 def length(elt):
     return len(elt)

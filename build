@@ -46,3 +46,11 @@ walk "./src", /\.pegco$/, (abspath, relpath) ->
     pool.createTaskForFile abspath, outfile, (data) ->
         pegco.compile data
 
+walk "./src", /\.src$/, (abs, rel) ->
+    outfile = "./lib/" + rel.replace /src$/, 'js'
+
+    pool.createTaskForFile abs, outfile, (data) ->
+        return """
+            exports.source = #{JSON.stringify(data)};
+        """
+

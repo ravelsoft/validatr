@@ -18,7 +18,6 @@ vows = require \vows
 
 function execPython (python_code, json, done)
     code = """
-        from validatr import *
         #python_code
         from simplejson import loads
         o = loads('''[ #json ]''')
