@@ -1,0 +1,7 @@
+number: {
+        string: string
+}
+---
+{ "number": { "string": "coucou" }}
+---
+{ "number": { "string": 2 }}

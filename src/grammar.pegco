@@ -32,23 +32,21 @@ type_choice
         return type
 
 type_single
-    = type:(string
-    / date
-    / number
-    / integer
-    / boolean
-    / null
-    / undefined
-    / anything / ref_call) validation:boolean_expression? assignement:assignement? ->
+    = !(property) type:(string
+        / date
+        / number
+        / integer
+        / boolean
+        / null
+        / undefined
+        / anything / ref_call) validation:boolean_expression? assignement:assignement? ->
         # FIXME add validation
         if validation
             type.validation = validation
         type.assign = assignement or null
         return type
-    / validation:boolean_expression? type:(array / object) assignement:assignement? ->
-        # FIXME add validation
-        if validation
-            type.validation = validation
+
+    / type:(array / object) assignement:assignement? ->
         type.assign = assignement or null
         return type
 
@@ -74,15 +72,19 @@ top_level_assignement
         return ""
 
 array
-    = LBRACKET type:type? RBRACKET ->
+    = validation:boolean_expression? LBRACKET type:type? RBRACKET ->
         arr = new TypeArray type
+        if validation
+            arr.validation = validation
         return arr
 
 object
-    = LBRACE props:property* RBRACE ->
+    = validation:boolean_expression? LBRACE props:property* RBRACE ->
         obj = new TypeObject!
         for o of props
             obj.addProperty o
+        if validation
+            obj.validation = validation
         return obj
 
     / props:property+ ->
@@ -124,7 +126,8 @@ undefined
 date 
     = __? "date" -> return new TypeDate
 string 
-    = __? "string" -> return new TypeString
+    = __? "string" -> 
+        return new TypeString
 number 
     = __? "number" -> return new TypeNumber
 integer 
