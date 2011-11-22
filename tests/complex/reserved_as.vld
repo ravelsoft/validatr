@@ -1,0 +1,9 @@
+number: {
+        something: number
+        as_string: string as $plop
+        plop: string
+}
+---
+{ "number": { "something": 2, "as_string": "coucou", "plop": "hello" }}
+---
+{ "number": { "default_string": 2 }}

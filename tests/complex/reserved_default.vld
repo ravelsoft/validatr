@@ -1,0 +1,8 @@
+number: {
+        something: number
+        default_string: string
+}
+---
+{ "number": { "something": 2, "default_string": "coucou" }}
+---
+{ "number": { "default_string": 2 }}

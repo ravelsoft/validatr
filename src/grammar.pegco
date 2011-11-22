@@ -94,7 +94,7 @@ object
         return obj
 
 property
-    = __? name:string_literal  __? ":" type:type def:default?  ->
+    = __? name:string_literal  __? ":" type:type def:(!property def:default { return def; })?  ->
         prop = new TypeProperty name, type
         if def
             prop.setDefault def
